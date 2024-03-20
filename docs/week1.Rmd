@@ -6,8 +6,10 @@ date: '2024-03-01'
 
 Use this notebook to quickly write the methods for the week:
 
-
-
+download data from EMBL-ENA website
+adaptor trimming of reads with trimmomatic
+qc with fastqc
+created genome index with 'GRCh38.primary_assembly.genome.fa.gz'
 
 
 
