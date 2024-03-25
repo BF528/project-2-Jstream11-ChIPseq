@@ -8,7 +8,7 @@ rule all:
 	input:
 		expand('results/{condition}_{rep}_fastqc.html', condition=CONDITIONS, rep=REPS),
 		expand('results/{condition}_{rep}.trimmed.fastq', condition=CONDITIONS, rep=REPS),
-		'human_reference_genome_index'
+		expand('results/GRCh38_index.{ext}', ext=['1.bt2', '2.bt2', '3.bt2', '4.bt2', 'rev.1.bt2', 'rev.2.bt2'])
 
 rule wget_files:
 	output:
@@ -25,14 +25,15 @@ rule bowtie2_build_gencode:
 	input:
 		ref = 'GRCh38.primary_assembly.genome.fa.gz'
 	output:
-		index = 'human_reference_genome_index'
+		expand('results/GRCh38_index.{ext}', ext=['1.bt2', '2.bt2', '3.bt2', '4.bt2', 'rev.1.bt2', 'rev.2.bt2'])
 	params:
+		basename = 'results/GRCh38_index'
 	threads: 16
 	conda:
 		'envs/bowtie2_env.yml'
 	shell:
 		'''
-		bowtie2-build {input.ref} {output.index}
+		bowtie2-build --threads {threads} {input.ref} {params.basename}
 		'''
 
 rule fastqc:
@@ -47,7 +48,7 @@ rule fastqc:
 		'envs/fastqc_env.yml'
 	shell:
 		'''
-		fastqc {input.fastq} -o {params.outdir}
+		fastqc --threads {threads} {input.fastq} -o {params.outdir}
 		'''
 
 rule trimomatic:
@@ -61,5 +62,5 @@ rule trimomatic:
 		'envs/trimmomatic_env.yml'
 	shell:
 		'''
-		trimmomatic SE {input.fastq} {output.trimmed} ILLUMINACLIP:{input.adapters}:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15
+		trimmomatic SE -threads {threads} {input.fastq} {output.trimmed} ILLUMINACLIP:{input.adapters}:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15
 		'''

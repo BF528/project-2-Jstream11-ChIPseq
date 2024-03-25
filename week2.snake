@@ -1,44 +1,90 @@
+import pandas
+sample_csv = pandas.read_csv('subsample_sheet.csv', index_col='name')
+CONDITIONS = set(sample_csv['condition'].tolist())
+REPS = set(sample_csv['replicate'].tolist())
+
 rule all:
 	input:
+		expand("results/{condition}_{rep}.bigWig", condition=CONDITIONS, rep=REPS),
+		'results/multiqc_report.html'
 
 rule bowtie2_align:
 	input:
+		fastq = "samples/{condition}_{rep}.fastq.gz"
 	output:
+		bam = "results/{condition}_{rep}.bam"
 	threads: 16
 	params:
+		basename = "results/GRCh38_index"
 	conda:
 		'envs/bowtie2_env.yml'
 	shell:
+		'''
+		bowtie2 --threads {threads} -x {params.basename} -U {input.fastq} | samtools view -h -S -b -o {output.bam}
+		'''
 
 rule samtools_sort:
 	input:
+		bam = "results/{condition}_{rep}.bam"
 	output:
+		sorted = "results/{condition}_{rep}_sorted.bam"
 	conda:
 		'envs/samtools_env.yml'
 	shell:
+		'''
+		samtools sort {input.bam} -o {output.sorted}
+		'''
 
 rule samtools_idx:
 	input:
+		bam = "results/{condition}_{rep}_sorted.bam"
 	output:
+		bai = "results/{condition}_{rep}_indexed.bai"
 	conda:
 		'envs/samtools_env.yml'
 	shell:
+		'''
+		samtools index {input.bam} {output.bai}
+		'''
+
+rule flagstats:
+	input:
+		bam = "results/{condition}_{rep}.bam"
+	output:
+		flagstats = 'results/{condition}_{rep}_flagstats.txt'
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools flagstats {input.bam} > {output.flagstats}
+		'''
 
 rule multiqc:
 	input:
+		fq = expand("results/{condition}_{rep}_fastqc.html", condition=CONDITIONS, rep=REPS)
 	output:
+		multiqc = 'results/multiqc_report.html'
 	params:
+		results = 'results/'
 	conda:
 		'envs/multiqc_env.yml'
 	shell:
+		'''
+		multiqc {params.results} -o {params.results} -f
+		'''
 
 rule bamCoverage:
 	input:
+		bam = "results/{condition}_{rep}_sorted.bam"
 	output:
+		bigwig = "results/{condition}_{rep}.bigWig"
 	threads: 4
 	conda:
 		'envs/deeptools_env.yml'
 	shell:
+		'''
+		bamCoverage --bam {input.bam} -o {output.bigwig}
+		'''
 
 rule multiBwSummary:
 	input:
@@ -46,6 +92,8 @@ rule multiBwSummary:
 	conda:
 		'envs/deeptools_env.yml'
 	shell:
+		'''
+		'''
 
 rule plotCorrelation:
 	input:
@@ -54,3 +102,5 @@ rule plotCorrelation:
 	conda:
 		'envs/deeptools_env.yml'
 	shell:
+		'''
+		'''
