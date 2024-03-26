@@ -1,12 +1,15 @@
 import pandas
-sample_csv = pandas.read_csv('subsample_sheet.csv', index_col='name')
+sample_csv = pandas.read_csv('sample_sheet.csv', index_col='name')
 CONDITIONS = set(sample_csv['condition'].tolist())
 REPS = set(sample_csv['replicate'].tolist())
 
 rule all:
 	input:
 		expand("results/{condition}_{rep}.bigWig", condition=CONDITIONS, rep=REPS),
-		'results/multiqc_report.html'
+		expand("results/{condition}_{rep}_sorted.bam.bai", condition=CONDITIONS, rep=REPS),
+		expand("results/{condition}_{rep}_flagstats.txt", condition=CONDITIONS, rep=REPS),
+		'results/multiqc_report.html',
+		'results/samplepearsoncorrelation.png'
 
 rule bowtie2_align:
 	input:
@@ -39,12 +42,12 @@ rule samtools_idx:
 	input:
 		bam = "results/{condition}_{rep}_sorted.bam"
 	output:
-		bai = "results/{condition}_{rep}_indexed.bai"
+		bai = "results/{condition}_{rep}_sorted.bam.bai"
 	conda:
 		'envs/samtools_env.yml'
 	shell:
 		'''
-		samtools index {input.bam} {output.bai}
+		samtools index {input.bam}
 		'''
 
 rule flagstats:
@@ -78,29 +81,36 @@ rule bamCoverage:
 		bam = "results/{condition}_{rep}_sorted.bam"
 	output:
 		bigwig = "results/{condition}_{rep}.bigWig"
-	threads: 4
+#	threads: 4
 	conda:
 		'envs/deeptools_env.yml'
 	shell:
 		'''
-		bamCoverage --bam {input.bam} -o {output.bigwig}
+		bamCoverage -b {input.bam} -o {output.bigwig}
 		'''
 
 rule multiBwSummary:
 	input:
+		bigwig = expand("results/{condition}_{rep}.bigWig", condition=CONDITIONS, rep=REPS)
 	output:
+		multiBW = "results/sampleresults.npz"
 	conda:
 		'envs/deeptools_env.yml'
 	shell:
 		'''
+		multiBigwigSummary bins -b {input.bigwig} -o {output.multiBW}
 		'''
 
 rule plotCorrelation:
 	input:
+		matrix = 'results/results.npz'
 	output:
+		plot = 'results/samplepearsoncorrelation.png'
 	params:
 	conda:
 		'envs/deeptools_env.yml'
 	shell:
 		'''
+		plotCorrelation -in {input.matrix} --corMethod spearman --skipZeros \
+    	--whatToPlot heatmap --plotNumbers -o {output.plot}
 		'''
