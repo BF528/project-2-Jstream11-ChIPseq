@@ -6,14 +6,13 @@ REPS = set(sample_csv['replicate'].tolist())
 rule all:
 	input:
 		expand("results/{condition}_{rep}.bigWig", condition=CONDITIONS, rep=REPS),
-		expand("results/{condition}_{rep}_sorted.bam.bai", condition=CONDITIONS, rep=REPS),
 		expand("results/{condition}_{rep}_flagstats.txt", condition=CONDITIONS, rep=REPS),
 		'results/multiqc_report.html',
 		'results/samplepearsoncorrelation.png'
 
 rule bowtie2_align:
 	input:
-		fastq = "samples/{condition}_{rep}.fastq.gz"
+		fastq = "results/{condition}_{rep}.trimmed.fastq"
 	output:
 		bam = "results/{condition}_{rep}.bam"
 	threads: 16
@@ -78,10 +77,11 @@ rule multiqc:
 
 rule bamCoverage:
 	input:
-		bam = "results/{condition}_{rep}_sorted.bam"
+		bam = "results/{condition}_{rep}_sorted.bam",
+		bai = "results/{condition}_{rep}_sorted.bam.bai"
 	output:
 		bigwig = "results/{condition}_{rep}.bigWig"
-#	threads: 4
+	threads: 4
 	conda:
 		'envs/deeptools_env.yml'
 	shell:
@@ -103,7 +103,7 @@ rule multiBwSummary:
 
 rule plotCorrelation:
 	input:
-		matrix = 'results/results.npz'
+		matrix = 'results/sampleresults.npz'
 	output:
 		plot = 'results/samplepearsoncorrelation.png'
 	params:
