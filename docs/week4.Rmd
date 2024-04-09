@@ -12,4 +12,50 @@ Use this notebook to quickly write the methods for the week:
 
 
 If asked, you may also include any plots or figures in this notebook as well:
+```{r}
+library('tidyverse')
+library('DESeq2')
+library('fgsea')
+library('ggplot2')
+library('gridExtra')
+```
+```{r}
+read_DESeq2_results <- function(filename){
+   # read in counts matrix
+  DESeq2_results <- readr::read_tsv(filename) 
+  return(DESeq2_results)
+}
+
+DESeq_Results <- read_DESeq2_results('/projectnb/bf528/students/jstream/project-2-Jstream11/GSE75070_MCF7_shRUNX1_shNS_RNAseq_log2_foldchange.txt')
+```
+
+Apply the same filters and cutoffs as specified in the methods of the original paper => To find significant differentially expressed genes, we used 0.01 for adjusted p-value and >1 log2 fold change.
+How many DE genes do you find? 1,153
+Do they match the numbers reported in the paper? yes same as number of genes reported in Supplementary Table 1. 
+```{r}
+filter_results <- function(DESeq2_results){
+  filtered_results <- DESeq2_results %>%
+    filter(padj<0.01) %>%
+    filter(abs(log2FoldChange)>1)
+  return(filtered_results)
+}
+
+filtered_DESeq_Results <- filter_results(DESeq_Results)
+```
+
+```{r}
+print(filtered_DESeq_Results)
+```
+Using the list of DE genes downloaded in step 1 and the annotated peak file you generated previously, recreate figure 2f and supplementary figure S2D and produce stacked barcharts showing the proportions of DE genes with a Runx1 peak found within +/- 5kb, +/- 20kb, and +/- 100kb of the TSS
+```{r}
+# y axis -> percentage of genes
+# x axis -> up-regulated and down-regulated genes broken up by a Runx1 peak found within +/- 5kb, +/- 20kb, and +/- 100kb of the TSS
+peaks <- read_tsv('/projectnb/bf528/students/jstream/project-2-Jstream11/results/tagDir/annotate_peaks.txt')
+
+five_kb_data <- filtered_DESeq_Results %>%
+  join_by(peaks, genename=="Gene Name") %>%
+  filter()
+
+```
+
 
