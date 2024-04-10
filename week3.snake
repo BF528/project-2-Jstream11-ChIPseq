@@ -69,7 +69,7 @@ rule filter_blacklist:
 		'envs/bedtools_env.yml'
 	shell:
 		'''
-		bedtools intersect -a {input.rep_peaks} -b {input.blacklist} > {output.filtered_peaks}
+		bedtools intersect -a {input.rep_peaks} -b {input.blacklist} -v > {output.filtered_peaks}
 		'''
 
 rule unzip_gtf:

@@ -47,15 +47,208 @@ filtered_DESeq_Results <- filter_results(DESeq_Results)
 print(filtered_DESeq_Results)
 ```
 Using the list of DE genes downloaded in step 1 and the annotated peak file you generated previously, recreate figure 2f and supplementary figure S2D and produce stacked barcharts showing the proportions of DE genes with a Runx1 peak found within +/- 5kb, +/- 20kb, and +/- 100kb of the TSS
-```{r}
 # y axis -> percentage of genes
 # x axis -> up-regulated and down-regulated genes broken up by a Runx1 peak found within +/- 5kb, +/- 20kb, and +/- 100kb of the TSS
+"To evaluate whether there is enhanced RUNX1 binding at the promoters of the genes that were up- or down-regulated following RUNX1 knockdown, we plotted RUNX1 peak binding within +/− 5kb of differentially expressed gene promoters, as well as +/− 20kb of differentially expressed gene bodies"
+```{r}
+# filtering peak data
 peaks <- read_tsv('/projectnb/bf528/students/jstream/project-2-Jstream11/results/tagDir/annotate_peaks.txt')
 
-five_kb_data <- filtered_DESeq_Results %>%
-  join_by(peaks, genename=="Gene Name") %>%
-  filter()
+combined_data <- filtered_DESeq_Results %>%
+  dplyr::inner_join(peaks, by = c("genename" = "Gene Name"))
+
+
+five_kb_data <- combined_data %>%
+  dplyr::filter(abs(`Distance to TSS`) < 5000) %>% 
+  select(genename, log2FoldChange, `Peak Score`, `Distance to TSS`)
+
+five_kb_data_up <- five_kb_data %>%
+  dplyr::filter(log2FoldChange>0)
+five_kb_data_down <- five_kb_data %>%
+  dplyr::filter(log2FoldChange<=0)
+
+num_5kb_up <- nrow(five_kb_data_up)
+num_5kb_down <- nrow(five_kb_data_down)
+
+twenty_kb_data <- combined_data %>%
+  dplyr::filter(abs(`Distance to TSS`) > 5000) %>% 
+  dplyr::filter(abs(`Distance to TSS`) < 20000) %>%
+  select(genename, log2FoldChange, `Peak Score`, `Distance to TSS`)
+
+twenty_kb_data_up <- twenty_kb_data %>%
+  dplyr::filter(log2FoldChange>0)
+twenty_kb_data_down <- twenty_kb_data %>%
+  dplyr::filter(log2FoldChange<=0)
+
+num_20kb_up <- nrow(twenty_kb_data_up)
+num_20kb_down <- nrow(twenty_kb_data_down)
+
+hundred_kb_data <- combined_data %>%
+  dplyr::filter(abs(`Distance to TSS`) > 20000) %>%
+  dplyr::filter(abs(`Distance to TSS`) < 100000) %>%
+  select(genename, log2FoldChange, `Peak Score`, `Distance to TSS`)
+
+hundred_kb_data_up <- hundred_kb_data %>%
+  dplyr::filter(log2FoldChange>0)
+hundred_kb_data_down <- hundred_kb_data %>%
+  dplyr::filter(log2FoldChange<=0)
+
+num_100kb_up <- nrow(hundred_kb_data_up)
+num_100kb_down <- nrow(hundred_kb_data_down)
 
 ```
+Getting no peak data from gene annotation info
+
+```{r}
+# filtering no peak data
+
+gtf_file <- "/projectnb/bf528/students/jstream/project-2-Jstream11/gencode.v45.primary_assembly.annotation.gtf"
+
+# Read the GTF file
+gtf_data <- read.table(gtf_file, header = FALSE, sep = '\t')
+colnames(gtf_data) <- c("Chr","Source","Type","Start","End","Peak Score","Strand","Phase","Attributes")
+extract_attributes <- function(gtf_attributes, att_of_interest){
+  att <- unlist(strsplit(gtf_attributes, " "))
+  if(att_of_interest %in% att){
+    return(gsub("\"|;","", att[which(att %in% att_of_interest)+1]))
+  }else{
+    return(NA)}
+}
+
+#make gene gtf gene table compatible with peak annotation results
+gtf_genes <- gtf_data %>%
+  dplyr::filter(Type=='gene') %>%
+  select(c("Chr","Start","End","Peak Score", "Attributes"))
+
+gtf_genes$`Gene Name` <- unlist(lapply(gtf_genes$Attributes, extract_attributes, "gene_name"))
+gtf_genes <- gtf_genes %>%
+  select(c("Start","End","Peak Score", "Gene Name"))
+#make peak gene table compatible with gtf genes
+peaks <- peaks %>%
+  select(c("Start","End","Peak Score", "Gene Name"))
+peaks$`Peak Score` <- as.character(peaks$`Peak Score`)
+
+#make table of genes in gtf not in peak annotation
+no_peak_genes <- anti_join(gtf_genes, peaks, by = "Gene Name") %>%
+    inner_join(filtered_DESeq_Results, by = c("Gene Name" = "genename"))
+
+
+```
+
+need to calculate distance to TSS filter
+```{r}
+# Assuming gtf_data contains your GTF data and peaks contains your ChIP-Seq peaks
+
+# Filter out the TSS entries from the GTF data
+tss_data <- gtf_data[gtf_data$Type == "transcript", ]
+
+# Calculate TSS positions (assuming TSS is at the start of each transcript)
+tss_positions <- ifelse(tss_data$Strand == "+", tss_data$Start, tss_data$End)
+
+# Calculate midpoint of each peak
+no_peak_genes$Midpoint <- (no_peak_genes$Start + no_peak_genes$End) / 2
+
+# Calculate distance to TSS for each peak
+no_peak_genes$`Distance to TSS` <- sapply(no_peak_genes$Midpoint, function(Midpoint) {
+  min(abs(Midpoint - tss_positions))
+})
+
+```
+
+need to filter no peak genes by distance and up/down regulation
+```{r}
+NP_five_kb_data <- no_peak_genes %>%
+  dplyr::filter(abs(`Distance to TSS`) < 5000) %>% 
+  select(`Gene Name`, log2FoldChange, `Peak Score`, `Distance to TSS`)
+
+NP_five_kb_data_up <- NP_five_kb_data %>%
+  dplyr::filter(log2FoldChange>0)
+NP_five_kb_data_down <- NP_five_kb_data %>%
+  dplyr::filter(log2FoldChange<=0)
+
+NP_num_5kb_up <- nrow(NP_five_kb_data_up)
+NP_num_5kb_down <- nrow(NP_five_kb_data_down)
+
+NP_twenty_kb_data <- no_peak_genes %>%
+  dplyr::filter(abs(`Distance to TSS`) > 5000) %>% 
+  dplyr::filter(abs(`Distance to TSS`) < 20000) %>%
+  select(`Gene Name`, log2FoldChange, `Peak Score`, `Distance to TSS`)
+
+NP_twenty_kb_data_up <- NP_twenty_kb_data %>%
+  dplyr::filter(log2FoldChange>0)
+NP_twenty_kb_data_down <- NP_twenty_kb_data %>%
+  dplyr::filter(log2FoldChange<=0)
+
+NP_num_20kb_up <- nrow(NP_twenty_kb_data_up)
+NP_num_20kb_down <- nrow(NP_twenty_kb_data_down)
+
+NP_hundred_kb_data <- no_peak_genes %>%
+  dplyr::filter(abs(`Distance to TSS`) > 20000) %>%
+  dplyr::filter(abs(`Distance to TSS`) < 100000) %>%
+  select(`Gene Name`, log2FoldChange, `Peak Score`, `Distance to TSS`)
+
+NP_hundred_kb_data_up <- NP_hundred_kb_data %>%
+  dplyr::filter(log2FoldChange>0)
+NP_hundred_kb_data_down <- NP_hundred_kb_data %>%
+  dplyr::filter(log2FoldChange<=0)
+
+NP_num_100kb_up <- nrow(NP_hundred_kb_data_up)
+NP_num_100kb_down <- nrow(NP_hundred_kb_data_down)
+```
+making dataframe for plot
+```{r}
+distance_df <- data.frame(
+  Distance = c("5kb", "20kb", "100kb"),
+  Upregulated = c(num_5kb_up, num_20kb_up, num_100kb_up),
+  Downregulated = c(num_5kb_down, num_20kb_down, num_100kb_down),
+  NP_Upregulated = c(NP_num_5kb_up, NP_num_20kb_up, NP_num_100kb_up),
+  NP_Downregulated = c(NP_num_5kb_down, NP_num_20kb_down, NP_num_100kb_down)
+)
+
+```
+plot
+
+```{r}
+# Create a new dataframe with the desired structure
+distance_df_new <- data.frame(
+  Distance = rep(c("5kb", "20kb", "100kb"), each = 4),
+  Gene_Status = rep(c("Upregulated", "Downregulated"), each = 2),
+  Peak_Status = rep(c("Peak", "No Peak"), each = 1),
+  Percentage = c(
+    num_5kb_up, NP_num_5kb_up, 
+    num_5kb_down, NP_num_5kb_down,
+    num_20kb_up, NP_num_20kb_up, 
+    num_20kb_down, NP_num_20kb_down,
+    num_100kb_up, NP_num_100kb_up, 
+    num_100kb_down, NP_num_100kb_down
+  )
+)
+
+# Calculate total counts for each distance and gene status
+distance_df_new$Total <- ave(distance_df_new$Percentage, distance_df_new$Distance, distance_df_new$Gene_Status, FUN = sum)
+
+# Calculate percentages
+distance_df_new$Percentage <- distance_df_new$Percentage / distance_df_new$Total * 100
+
+# Reorder Distance as a factor with the desired order
+distance_df_new$Distance <- factor(distance_df_new$Distance, levels = c("5kb", "20kb", "100kb"))
+
+# Plot
+ggplot(distance_df_new, aes(x = Gene_Status, y = Percentage, fill = Peak_Status)) +
+  geom_bar(stat = "identity", position = "stack") +
+  facet_wrap(~Distance) +
+  scale_x_discrete(limits = c("Upregulated", "Downregulated")) +  # Ensure correct order on x-axis
+  labs(x = "Gene Status", y = "Percentage of Genes", fill = "Peak Status", text = paste0()) +
+  ggtitle("Stacked Barplot of Gene Status by Distance and Peak Status") +
+  theme_minimal()
+
+```
+
+```{r}
+print(distance_df)
+```
+
+
+
 
 
